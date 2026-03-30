@@ -593,9 +593,16 @@ let lines = Array.from({length:10}, () => ({
 
 function add(r){
   lines.forEach(l=>{
-    if(l.pending){
-      l.pending===r?(l.hit++,l.history.push('W')):(l.miss++,l.history.push('L'));
-    }
+ if(l.pending && r !== 'T'){
+  if(l.pending === r){
+    l.hit++;
+    l.history.push('W');
+  }else{
+    l.miss++;
+    l.history.push('L');
+  }
+}
+
   });
   road.push(r);
   predict().forEach((p,i)=>lines[i].bet=lines[i].pending=p);
@@ -611,14 +618,18 @@ function clearAll(){
 function recalc(){let t=[...road];clearAll();t.forEach(add);}
 
 function predict() {
-  let p = road.filter(x => x === 'P').length;
-  let b = road.filter(x => x === 'B').length;
-  let last = road.at(-1);
+
+  // ✅ ตัด T ออกก่อน
+  let clean = road.filter(x => x !== 'T');
+
+  let p = clean.filter(x => x === 'P').length;
+  let b = clean.filter(x => x === 'B').length;
+  let last = clean.at(-1);
 
   let r = new Array(10).fill(null);
 
   // ===== Mirror Balance =====
-  let recent10 = road.slice(-10);
+  let recent10 = clean.slice(-10);
   let pRecent = recent10.filter(x => x === 'P').length;
   let bRecent = recent10.filter(x => x === 'B').length;
 
@@ -631,10 +642,10 @@ function predict() {
   // ===== 2 Opposite =====
   r[2] = last ? (last === 'B' ? 'P' : 'B') : null;
 
-  // ===== คำนวณ streak =====
+  // ===== streak =====
   let s = 1;
-  for (let i = road.length - 1; i > 0; i--) {
-    if (road[i] === road[i - 1]) s++;
+  for (let i = clean.length - 1; i > 0; i--) {
+    if (clean[i] === clean[i - 1]) s++;
     else break;
   }
 
@@ -655,7 +666,7 @@ function predict() {
   }
 
   // ===== 7 Anti Fake =====
-  let last4 = road.slice(-4);
+  let last4 = clean.slice(-4);
   if (last4.length === 4) {
     let pattern = last4.join('');
     r[7] = (pattern === 'BPBP' || pattern === 'PBPB') ? null : last;
@@ -663,39 +674,58 @@ function predict() {
 
   // ===== 8 Deep Break =====
   if (s >= 4) {
-    let recent5 = road.slice(-5);
+    let recent5 = clean.slice(-5);
     let same = recent5.filter(x => x === last).length;
     if (same >= 4) r[8] = last === 'B' ? 'P' : 'B';
   }
 
-// ===== 9 Weighted (ULTRA FAST ALWAYS BET) =====
-let recent6 = road.slice(-6);
-let score = 0;
+// ===== 9 ULTRA LOCK (แทงทุกตา 100%) =====
+let recent6 = clean.slice(-6);
 
-recent6.forEach((x, i) => {
-  let w = i + 1;
-  score += x === 'P' ? w : -w;
-});
-
-// 🔥 1. มีข้อมูล → ใช้ score ตัดสินทันที
-if (recent6.length >= 2) {
-  r[9] = score >= 0 ? 'P' : 'B';
-}
-else if (recent6.length === 1) {
-  // 🔥 2. มีแค่ 1 ตา → แทงสวนทันที
-  let last = recent6[0];
-  r[9] = last === 'P' ? 'B' : 'P';
+// 🔥 ไม่มีข้อมูลเลย
+if (recent6.length === 0) {
+  r[9] = 'P'; // เปิด P ตายตัว
 }
 else {
-  // 🔥 3. ตาแรก → เปิดด้วย P (หรือจะสุ่มก็ได้)
-  r[9] = 'P';
+
+  let score = 0;
+
+  recent6.forEach((x, i) => {
+    let w = i + 1;
+    score += x === 'P' ? w : -w;
+  });
+
+  // 🔥 ถ้า score = 0 → ใช้ last (กันแกว่ง)
+  if (score === 0) {
+    if (last) {
+      r[9] = last === 'P' ? 'B' : 'P';
+    } else {
+      r[9] = 'P'; // กัน undefined
+    }
+  } else {
+    r[9] = score > 0 ? 'P' : 'B';
+  }
 }
 
-  // ===== 🔥 Safe Mode =====
-  if (r[7] === null) {
-  r[8] = null;
-  // ❌ อย่าปิด r[9]
+// ===== 🔥 กันปิงปอง (override ทุกกรณี) =====
+let pattern = clean.slice(-6).join('');
+if (/PBPBPB|BPBPBP/.test(pattern)) {
+  if (last) {
+    r[9] = last === 'P' ? 'B' : 'P';
+  } else {
+    r[9] = 'P';
+  }
 }
+
+// ===== 🔒 FINAL LOCK (กันหลุด 100%) =====
+if (r[9] !== 'P' && r[9] !== 'B') {
+  r[9] = last ? (last === 'P' ? 'B' : 'P') : 'P';
+}
+
+  // ===== Safe Mode =====
+  if (r[7] === null) {
+    r[8] = null;
+  }
 
   return r;
 }
@@ -732,22 +762,31 @@ function render(){
     l.pct=(l.bet&&t)?Math.round(l.hit/t*100):0;
   });
 
-  // ===== SUMMARY =====
-  let active=lines.filter(l=>(l.bet==='B'||l.bet==='P')&&(l.hit+l.miss));
-  let maxAcc=active.length?Math.max(...active.map(l=>l.pct)):0;
-  let blinkLines=active.filter(l=>l.pct===maxAcc);
-  let blinkP=blinkLines.filter(l=>l.bet==='P').length;
-  let blinkB=blinkLines.filter(l=>l.bet==='B').length;
+// ===== SUMMARY =====
+let active = lines.filter(l =>
+  (l.bet === 'B' || l.bet === 'P')
+);
+let maxAcc=active.length?Math.max(...active.map(l=>l.pct)):0;
 
-  // 🔥 NEW: count P B T
+// ✅ ULTRA WINRATE
+let best = lines.filter(l=>l.pct === maxAcc);
+let ultraWin = best.reduce((a,l)=>a+l.hit,0);
+let ultraPlay = best.reduce((a,l)=>a+(l.hit+l.miss),0);
+
+let winrate = ultraPlay
+  ? Math.round(ultraWin / ultraPlay * 100)
+  : 0;
+
+let blinkLines=active.filter(l=>l.pct===maxAcc);
+let blinkP=blinkLines.filter(l=>l.bet==='P').length;
+let blinkB=blinkLines.filter(l=>l.bet==='B').length;
+
+// 🔥 count ไพ่
 let countP = road.filter(x=>x==='P').length;
 let countB = road.filter(x=>x==='B').length;
 let countT = road.filter(x=>x==='T').length;
 let total = road.length;
-// 🔥 NEW: winrate จริง (ไม่รวม T)
-let winrate = (countP + countB)
-  ? Math.round(countP / (countP + countB) * 100)
-  : 0;
+
 
 summary.innerHTML=`
 📊 <b>เงื่อนไข</b><br>
@@ -768,7 +807,7 @@ TOTAL = ${total} ตา<br>
   if(l.bet==='B'){betTxt='B';betCls='betB'}
   if(l.bet==='P'){betTxt='P';betCls='betP'}
 
-  let blink=(l.bet&&(l.hit+l.miss)&&l.pct===maxAcc);
+  let blink = (l.bet && l.pct === maxAcc);
 
   // 🔥 NEW: render history H/M
   let historyHTML = `
