@@ -508,7 +508,7 @@ button:hover::after{
 <header>
   <h2>📊 Smart Baccarat Killer อัพเดท 10 สาย จำอดีต แต่ฟอร์มสด</h2>
   <div>Professional Analysis System</div>
-  <div class="expire">⏳ วันหมดอายุ : 27 เมษายน พ.ศ. 2569</div>
+  <div class="expire">⏳ วันหมดอายุ : 11 พ.ค. 2569</div>
 </header>
 
 <div class="section">
@@ -554,12 +554,34 @@ button:hover::after{
 </div>
 
 <script>
-/* ===== EXPIRATION (เพิ่มอย่างเดียว) ===== */
-const expireDate=new Date("2026-04-27T23:59:59");
-if(new Date()>expireDate){
-  document.body.innerHTML=
-  "<h2 style='color:#ff6b6b;text-align:center;margin-top:20%'>⛔ โปรแกรมหมดอายุแล้ว</h2>";
+/* ===== EXPIRATION ===== */
+/* หมดอายุ 11 พ.ค. 2026 เวลาไทย 23:59:59 */
+const expireDate = new Date(2026,4,11,23,59,59);
+// JS เดือนเริ่ม 0 -> 11 = ธันวาคม
+
+function checkExpire(){
+
+  const now = Date.now();
+
+  if(now >= expireDate.getTime()){
+    document.body.innerHTML = `
+      <h2 style="
+        color:#ff6b6b;
+        text-align:center;
+        margin-top:20%;
+        font-size:38px">
+        ⛔ โปรแกรมหมดอายุแล้ว
+      </h2>
+    `;
+    return true;
+  }
+
+  return false;
 }
+
+/* ตรวจหมดอายุก่อนให้ระบบทำงาน */
+if(!checkExpire()){
+
 
 /* ===== LOGIN ===== */
 function login(){
@@ -976,7 +998,7 @@ function maxLoseStreak(history){
   });
   return max;
 }
-
+}
 </script>
 </body>
 </html>
